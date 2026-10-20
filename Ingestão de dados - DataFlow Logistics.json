@@ -1,0 +1,581 @@
+{
+  "name": "Ingestão de dados - DataFlow Logistics",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "fcf31fa7-cc4b-4caa-b1c8-68abe900016c",
+      "name": "Preencher Histórico de Cotações"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.frankfurter.dev/v1/{{ $now.minus(30, 'days').format('yyyy-MM-dd') }}..{{ $now.format('yyyy-MM-dd') }}?base=USD&symbols=BRL,EUR",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "d26030b9-fde1-48d2-9600-10cb25136419",
+      "name": "GET Histórico de Cotação"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.cotacoes (\n    moeda_base,\n    moeda_destino,\n    taxa,\n    data_cotacao\n)\nVALUES (\n    '{{ $json.moeda_base }}',\n    '{{ $json.moeda_destino }}',\n    {{ $json.taxa }},\n    '{{ $json.data_cotacao }}'\n)\nON CONFLICT (moeda_base, moeda_destino, data_cotacao)\nDO NOTHING;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        672,
+        0
+      ],
+      "id": "5dbd7a42-f0f6-4d0c-bf1f-762d1399c3b1",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "gwvVXi2DEp59PCZg",
+          "name": "DataFlow"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## PREENCHER HISTÓRICO DE CÂMBIO",
+        "height": 320,
+        "width": 1024,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -144,
+        -112
+      ],
+      "typeVersion": 1,
+      "id": "37bab2ef-7a89-402a-bcb9-3edd1c166ef1",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -80,
+        464
+      ],
+      "id": "f6f9a936-35f4-4be4-9eb3-d1e4335abf73",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst resultado = [];\n\nfor (const item of $input.all()) {\n  const dados = item.json;\n\n  const moedaBase = dados.base;\n  const taxas = dados.rates;\n\n  for (const [data, moedas] of Object.entries(taxas)) {\n    for (const [moedaDestino, taxa] of Object.entries(moedas)) {\n      resultado.push({\n        json: {\n          moeda_base: moedaBase,\n          moeda_destino: moedaDestino,\n          taxa: taxa,\n          data_cotacao: data\n        }\n      });\n    }\n  }\n}\n\nreturn resultado;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "99046898-8a6e-47fa-84c7-67045781fd3d",
+      "name": "Formatação Histórico"
+    },
+    {
+      "parameters": {
+        "url": "https://api.frankfurter.dev/v1/latest?base=USD&symbols=BRL,EUR",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        160,
+        464
+      ],
+      "id": "2b0bf76a-5752-42d7-b5c9-688d86e8e02e",
+      "name": "GET Cotação Diária"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4f850ff1-920a-4f24-866d-ddd7a633d897",
+              "name": "moeda_base",
+              "value": "={{ $json.base }}",
+              "type": "string"
+            },
+            {
+              "id": "9c2e5100-8379-479b-ad3a-8ab6ec37e171",
+              "name": "moeda_destino",
+              "value": "=BRL",
+              "type": "string"
+            },
+            {
+              "id": "4478ef98-09cc-40e3-9767-0acdc5263726",
+              "name": "taxa",
+              "value": "={{ $json.rates.BRL }}",
+              "type": "number"
+            },
+            {
+              "id": "5dc33b67-a389-4f5f-abf8-f0ca90cf7fcb",
+              "name": "data_cotacao",
+              "value": "={{ $json.date }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        400,
+        320
+      ],
+      "id": "1c932456-45b6-4064-b01b-1277184cd727",
+      "name": "Preparar BRL"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4f850ff1-920a-4f24-866d-ddd7a633d897",
+              "name": "moeda_base",
+              "value": "={{ $json.base }}",
+              "type": "string"
+            },
+            {
+              "id": "9c2e5100-8379-479b-ad3a-8ab6ec37e171",
+              "name": "moeda_destino",
+              "value": "=EUR",
+              "type": "string"
+            },
+            {
+              "id": "4478ef98-09cc-40e3-9767-0acdc5263726",
+              "name": "taxa",
+              "value": "={{ $json.rates.EUR }}",
+              "type": "number"
+            },
+            {
+              "id": "5dc33b67-a389-4f5f-abf8-f0ca90cf7fcb",
+              "name": "data_cotacao",
+              "value": "={{ $json.date }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        400,
+        608
+      ],
+      "id": "0c5a46d8-12b5-438f-8239-8958e7d0c775",
+      "name": "Preparar EUR"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        896,
+        464
+      ],
+      "id": "365861b3-3f9e-4e3d-8bce-bed2d7ea5a91",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "\nINSERT INTO public.cotacoes (\n    moeda_base,\n    moeda_destino,\n    taxa,\n    data_cotacao\n)\nVALUES (\n    '{{ $json.moeda_base }}',\n    '{{ $json.moeda_destino }}',\n    {{ $json.taxa }},\n    '{{ $json.data_cotacao }}'\n)\nON CONFLICT (moeda_base, moeda_destino, data_cotacao)\nDO UPDATE SET\n    taxa = EXCLUDED.taxa,\n    capturado_em = NOW();\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        608,
+        320
+      ],
+      "id": "16c94dcf-b7f6-459d-af45-5890345b669b",
+      "name": "Salvar taxa BRL",
+      "credentials": {
+        "postgres": {
+          "id": "gwvVXi2DEp59PCZg",
+          "name": "DataFlow"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "\nINSERT INTO public.cotacoes (\n    moeda_base,\n    moeda_destino,\n    taxa,\n    data_cotacao\n)\nVALUES (\n    '{{ $json.moeda_base }}',\n    '{{ $json.moeda_destino }}',\n    {{ $json.taxa }},\n    '{{ $json.data_cotacao }}'\n)\nON CONFLICT (moeda_base, moeda_destino, data_cotacao)\nDO UPDATE SET\n    taxa = EXCLUDED.taxa,\n    capturado_em = NOW();\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        624,
+        608
+      ],
+      "id": "37854ef8-8cf3-49c0-a805-2e8d6d910651",
+      "name": "Salvar taxa EUR",
+      "credentials": {
+        "postgres": {
+          "id": "gwvVXi2DEp59PCZg",
+          "name": "DataFlow"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## PEGAR CÂMBIO DIÁRIO",
+        "height": 496,
+        "width": 2256,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -144,
+        272
+      ],
+      "typeVersion": 1,
+      "id": "7e1af697-e769-45d5-b772-3f444b17c81c",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO fretes_convertidos (\n    rota_codigo, cliente_nome, moeda_cliente,\n    valor_frete_usd, taxa_aplicada, valor_frete_local, data_cotacao, calculado_em\n)\nSELECT\n  r.codigo,\n  c.nome,\n  c.moeda_principal,\n  r.valor_frete_usd,\n  (SELECT taxa FROM cotacoes WHERE moeda_base = 'USD' AND moeda_destino = c.moeda_principal ORDER BY data_cotacao DESC LIMIT 1),\n  ROUND(r.valor_frete_usd * (SELECT taxa FROM cotacoes WHERE moeda_base = 'USD' AND moeda_destino = c.moeda_principal ORDER BY data_cotacao DESC LIMIT 1), 2),\n  (SELECT data_cotacao FROM cotacoes WHERE moeda_base = 'USD' AND moeda_destino = c.moeda_principal ORDER BY data_cotacao DESC LIMIT 1),\n  NOW()\nFROM rotas r\nJOIN clientes c ON c.id = r.cliente_id\nON CONFLICT (rota_codigo, data_cotacao)\nDO UPDATE SET\n    taxa_aplicada = EXCLUDED.taxa_aplicada,\n    valor_frete_local = EXCLUDED.valor_frete_local,\n    calculado_em = NOW();",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1120,
+        464
+      ],
+      "id": "ceae7c9c-be8e-47d8-baec-3df05f836851",
+      "name": "Consolidar Fretes (Gold)",
+      "credentials": {
+        "postgres": {
+          "id": "gwvVXi2DEp59PCZg",
+          "name": "DataFlow"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  fc.rota_codigo,\n  fc.cliente_nome,\n  fc.moeda_cliente,\n  fc.valor_frete_local,\n  fc.taxa_aplicada AS taxa_hoje,\n  (SELECT taxa FROM cotacoes WHERE moeda_base = 'USD' AND moeda_destino = fc.moeda_cliente AND \ndata_cotacao <= CURRENT_DATE - INTERVAL '6 days' ORDER BY data_cotacao DESC LIMIT 1) AS taxa_7d,\n  ROUND(\n    ((fc.taxa_aplicada - (SELECT taxa FROM cotacoes WHERE moeda_base = 'USD' AND moeda_destino = fc.\nmoeda_cliente AND data_cotacao <= CURRENT_DATE - INTERVAL '6 days' ORDER BY data_cotacao DESC LIMIT 1))\n    / (SELECT taxa FROM cotacoes WHERE moeda_base = 'USD' AND moeda_destino = fc.moeda_cliente AND\ndata_cotacao <= CURRENT_DATE - INTERVAL '6 days' ORDER BY data_cotacao DESC LIMIT 1))\n  * 100, 2) AS variacao_pct\nFROM fretes_convertidos fc\nWHERE fc.calculado_em = (SELECT MAX(calculado_em) FROM fretes_convertidos)",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1344,
+        464
+      ],
+      "id": "7229af1b-c209-4775-acb9-112f25249e48",
+      "name": "Cálculo de variação cambial (7 dias)",
+      "credentials": {
+        "postgres": {
+          "id": "gwvVXi2DEp59PCZg",
+          "name": "DataFlow"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "931ed48c-9b06-4813-aaea-7a0832786ea2",
+              "leftValue": "={{ Math.abs($json.variacao_pct) }}",
+              "rightValue": 2,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        464
+      ],
+      "id": "c6e76fa9-3893-4403-bac9-5523fdff7a56",
+      "name": "If"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1792,
+        560
+      ],
+      "id": "bd07ca12-94a8-413d-bae7-7150290628ee",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0C9QR529GX",
+          "mode": "list",
+          "cachedResultName": "alerta-cotacao"
+        },
+        "text": "=🚩🚩🚩 ALERTA 🚩🚩🚩 O cliente {{ $json.cliente_nome }}, com rota {{ $json.rota_codigo }}, teve variação de {{ $json.variacao_pct }}% nos últimos 7 dias. ",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        1792,
+        368
+      ],
+      "id": "6667fc92-526d-4434-86db-6df6d380bf24",
+      "name": "Send a message",
+      "webhookId": "7a3e1fad-0801-4f36-ace8-c966ad4cf795",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "D9cGPCKL4hTDh8W1",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## ALERTAS SLACK\n\n",
+        "height": 432,
+        "width": 544,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1536,
+        304
+      ],
+      "typeVersion": 1,
+      "id": "ad40e379-094b-496d-ad1f-7a99129ef846",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "# INGESTÃO DE DADOS - DataFlow Logistcs",
+        "height": 1024,
+        "width": 2336
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -160,
+        -208
+      ],
+      "typeVersion": 1,
+      "id": "e7ab02a3-c5ca-4ab0-9c02-0f542e6c3bbf",
+      "name": "Sticky Note3"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Preencher Histórico de Cotações": {
+      "main": [
+        [
+          {
+            "node": "GET Histórico de Cotação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET Histórico de Cotação": {
+      "main": [
+        [
+          {
+            "node": "Formatação Histórico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "GET Cotação Diária",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatação Histórico": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET Cotação Diária": {
+      "main": [
+        [
+          {
+            "node": "Preparar BRL",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Preparar EUR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar EUR": {
+      "main": [
+        [
+          {
+            "node": "Salvar taxa EUR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar BRL": {
+      "main": [
+        [
+          {
+            "node": "Salvar taxa BRL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar taxa BRL": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar taxa EUR": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Consolidar Fretes (Gold)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consolidar Fretes (Gold)": {
+      "main": [
+        [
+          {
+            "node": "Cálculo de variação cambial (7 dias)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cálculo de variação cambial (7 dias)": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "2706ac25-0145-4b71-b2af-9c0219a9cdeb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ed99d9ddf9ac32f001dfc06ff602039796aca551bde50e0aa28761e42afd9d1c"
+  },
+  "nodeGroups": [],
+  "id": "DXop5BHL9GCNGICC",
+  "tags": []
+}
